@@ -23,6 +23,12 @@ export function BarcodeScannerField({ onDetected }: BarcodeScannerFieldProps) {
       {
         fps: 10,
         qrbox: { width: 250, height: 120 },
+        rememberLastUsedCamera: true,
+        showTorchButtonIfSupported: true,
+        showZoomSliderIfSupported: true,
+        videoConstraints: {
+          facingMode: { ideal: "environment" },
+        },
       },
       false
     );
@@ -36,8 +42,27 @@ export function BarcodeScannerField({ onDetected }: BarcodeScannerFieldProps) {
       },
       (decodeError) => {
         const message = String(decodeError);
-        if (!message.toLowerCase().includes("no multiformat readers")) {
-          setError(null);
+        // Keep decode loop silent unless camera/device level errors occur.
+        if (message.toLowerCase().includes("no multiformat readers")) {
+          return;
+        }
+
+        if (message.toLowerCase().includes("permission")) {
+          setError("Camera permission was denied. Please allow camera access and try again.");
+          return;
+        }
+
+        if (message.toLowerCase().includes("notallowederror")) {
+          setError("Camera access is blocked by the browser. Check site camera permissions.");
+          return;
+        }
+
+        if (
+          message.toLowerCase().includes("notfounderror") ||
+          message.toLowerCase().includes("no camera")
+        ) {
+          setError("No usable camera was found on this device.");
+          return;
         }
       }
     );
@@ -59,7 +84,14 @@ export function BarcodeScannerField({ onDetected }: BarcodeScannerFieldProps) {
     <div className="space-y-3">
       <button
         type="button"
-        onClick={() => setEnabled((current) => !current)}
+        onClick={() => {
+          if (!enabled && !window.isSecureContext) {
+            setError("Camera scanner requires a secure context (HTTPS or localhost).");
+            return;
+          }
+          setError(null);
+          setEnabled((current) => !current);
+        }}
         className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
         {enabled ? "Stop Camera Scanner" : "Scan Barcode with Camera"}
